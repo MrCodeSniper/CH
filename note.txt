@@ -1,0 +1,91 @@
+IPC IN Android
+
+进程是CPU分配资源的单位 一般为一个执行单元
+每个进程是独立的
+进程可以包含多个线程  多个线程共享进程的数据
+不同进程拥有独立的内存空间 虚拟机 Application
+线程是CPU调度的单位
+
+WINDOWS IPC 剪贴板 管道
+LINUX IPC 命名管道 共享内容 信号量
+
+Android IPC最主要的方式 BINDER SOCKET
+
+出现的场景有 单应用多进程情况 多应用情况
+
+Binder 服务端 客户端
+开多进程1.配置清单中process属性 2.native fork进程
+进程在logcat或adb shell ps 查看
+u0_a34    1839  178   901024 41696 SyS_epoll_ b72eb075 S com.ch.ch
+u0_a34    1879  178   899236 36092 SyS_epoll_ b72eb075 S com.ch.ch:remote
+
+
+:XXX为应用私有进程
+正常的XX.XXX.XX为全局进程
+
+每个应用有单独的UID 具有相同的UID的应用 才能共享数据
+可以互相访问对方的私有数据/data 组件信息等
+
+内存的直接共享必定失败 需要中间层来处理数据交互-Binder,共享文件,SOCKET
+
+理解Binder要从不同的角度去看
+
+应用层 客户端和服务端通信的媒介
+客户端服务使用者- 即我需要另外进程的什么数据函数  拿到服务端业务调用的封装Binder
+服务端服务提供者- 即我需要提供什么服务数据 给其他进程   提供Binder
+
+——
+
+封装实现AIDL
+
+AIDL使用 Android Interface Defination Language 接口定义语言 也就是一种DSL 用于进程通信
+
+1.服务端
+写好服务端提供的方法即aidl接口后 build生成aidl接口类 这个类继承自Interface
+作为binder中传输的共同父类 转为具体子类接口也是 从binder中根据标识符找到
+iinterface再强转为aidl接口类的
+
+生成的类包括
+1.代理proxy
+接收一个ibinder,ibinder为binder的抽象接口
+也就是接收binder对象
+
+执行函数时将参数和返回值写入Parcel对象
+将参数和返回值parcel传入binder的transact函数进行远程调用函数
+2.Stub剩余操作
+继承自binder可以视作ibinder
+
+onTransact
+进行函数的分发
+对每个函数进行编号
+当transact执行时会调用binder的ontransact根据编号switch
+到对应的函数也就是stub的函数
+实现由服务进程对stub的重写
+
+2.客户端
+
+intent匹配到对应进程的组件
+根据包名组件名找到服务端进程的组件service
+bindservice
+参数返回ibinder携带了对接口的实现
+通过flag找到对应服务的iinterface并强转为我们需要服务的接口
+调用时通过已实现的接口即可
+
+
+
+顺序整理
+1.Stub-Binder实现服务接口 也实现了proxy调用的转发
+2.客户端bindservice 拿到binder也就是stub
+3.binder中根据标志拿到proxy并缓存
+3）客户端通过proxy的服务执行
+4.proxy实现了服务接口 持有stub
+执行时将方法flag，参数和返回值包装并通过stub
+transact传递
+5.transact回调stub.onTransact根据flag
+switch对应的函数并执行
+此时的函数早已在第一步被实现调用到服务端进程service
+
+
+只要知道进程的包名和组件名
+加上服务的接口文件
+通过远程调用实现ipc
