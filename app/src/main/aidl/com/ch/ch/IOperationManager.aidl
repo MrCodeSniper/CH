@@ -5,7 +5,6 @@ package com.ch.ch;
 
 interface IOperationManager {
   //提供服务
-
-   //接收两个参数，并将运算结果返回给客户端
-     Parameter operation(in Parameter parameter1 , in Parameter parameter2);
+    String connect(String mes);
+     void disConnect(String mes);
 }
